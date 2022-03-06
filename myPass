@@ -1,0 +1,70 @@
+#!/bin/bash
+#generate shell checksum from the given input and load into clipboard and automatically delete after 10 seconds
+#echo 'Enter your text:';read -s a;echo $(echo $a|shasum -a 1)|cut -f1 -d' '|sed 's/\n//' |base64|xclip -i -rmlastnl -selection clipboard
+
+function getCode()
+{
+echo 'Enter your code:';read -s a
+}
+
+
+function genpass()
+{
+getCode
+echo $(echo ${a}|shasum -a 1)|cut -f1 -d' '|xclip -i -rmlastnl -selection clipboard
+(sleep 10; xclip -i -selection clipboard /dev/null) &
+}
+function genpass_unsalted()
+{
+getCode
+pinchofsalt="Z2VucGFzc3Vuc2FsdGVk"
+gen_hash_and_clean_mem
+}
+
+function genpass_salted()
+{
+getCode
+echo 'Put some salt:';read -s pinchofsalt
+gen_hash_and_clean_mem
+}
+
+#Generate hash and clear clipboard
+function gen_hash_and_clean_mem()
+{
+#echo "${pinchofsalt} ${a} $(echo ${pinchofsalt}|rev)"|openssl passwd -stdin -aixmd5 -salt "${pinchofsalt}"|cut -f2 -d$|xclip -i -rmlastnl -selection clipboard
+printf "${pinchofsalt} ${a} $(echo ${pinchofsalt}|rev)"|openssl passwd -stdin -aixmd5 -salt "${pinchofsalt}"|cut -f2 -d$|xclip -i -rmlastnl -selection clipboard
+
+(sleep 10; xclip -i -selection clipboard /dev/null) &
+}
+
+function get_help()
+{
+echo "
+This scrypt will generated secure hashcode from given code in order to use as password and load into clipboard ready to paste . It will automatically clear the clipboard after 10 seconds.  Using salted option you can save the code in paper or as unencrypted file since, these codes are useless as long as the salt is hidden or secure
+Syntax: myPass.sh [option]
+
+option: -a = shasum -a (to be decomissioned)
+	-s = salted
+	-h = display this help
+"
+
+}
+
+case $1 in 
+	"")
+		genpass_unsalted
+		;;
+	"-a" | "--added")
+		genpass
+		;;
+	"-s" | "--salted")
+		genpass_salted
+		;;
+	"-h" | "--help")
+		get_help
+		;;	
+	*)
+		echo "Invalid entry"
+		get_help
+		;;
+esac
