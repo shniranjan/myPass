@@ -21,3 +21,4 @@ if [ -z $(which openssl) ]; then
 #sudo cp ./myPass /usr/local/bin
 
 exit 0
+
