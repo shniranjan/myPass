@@ -5,20 +5,14 @@ if [ -z $(which xclip) ]; then
 	echo 'Required package (xclip) not installed.  Aboarting installation...'
 	sleep 2
 	exit 1
-
+fi
 if [ -z $(which openssl) ]; then
 	echo 'Required package (openssl) not installed.  Aboarting installation...'
 	sleep 2
 	exit 1
-
+fi
 
 #check if genpass exists, if not download
-[ ! -f myPass ] && wget https://raw.githubusercontent.com/shniranjan/myPass/master/myPass -O /usr/local/bin/myPass  && chmod +x myPass && echo "Installation successful"
-
-#enable executable
-#chmod +x myPass
-#copy genpass into bin directory
-#sudo cp ./myPass /usr/local/bin
-
-exit 0
-
+if [ ! -f '/usr/local/bin/myPass' ] ; then
+	wget https://raw.githubusercontent.com/shniranjan/myPass/master/myPass -O /usr/local/bin/myPass  && chmod +x /usr/local/bin/myPass && echo "Installation successful" && exit 0
+fi
