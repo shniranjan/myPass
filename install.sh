@@ -12,7 +12,6 @@ if [ -z $(which openssl) ]; then
 	exit 1
 fi
 
-#check if genpass exists, if not download
-if [ ! -f '/usr/local/bin/myPass' ] ; then
-	wget https://raw.githubusercontent.com/shniranjan/myPass/master/myPass -O /usr/local/bin/myPass  && chmod +x /usr/local/bin/myPass && echo "Installation successful" && exit 0
-fi
+#Download scrypt and change to executable
+wget https://raw.githubusercontent.com/shniranjan/myPass/master/myPass -O /usr/local/bin/myPass  && chmod +x /usr/local/bin/myPass && echo "Installation successful" && exit 0
+
