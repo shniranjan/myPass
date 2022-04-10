@@ -11,8 +11,8 @@ curl -s https://raw.githubusercontent.com/shniranjan/myPass/master/install.sh|su
 
 
 Common issue:
-Displays error message 'Invalid MIT-MAGIC-COOKIE-1 key(base)'
-
-Fixes:
-run the command 
-$xhost +local:
+<br>Displays error message 'Invalid MIT-MAGIC-COOKIE-1 key(base)'
+<br>
+<br>Fixes:
+<br>run the command 
+<br>$xhost +local:
