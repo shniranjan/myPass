@@ -1,70 +1,169 @@
-#!/bin/bash
-#generate shell checksum from the given input and load into clipboard and automatically delete after 10 seconds
-#echo 'Enter your text:';read -s a;echo $(echo $a|shasum -a 1)|cut -f1 -d' '|sed 's/\n//' |base64|xclip -i -rmlastnl -selection clipboard
+#!/usr/bin/env bash
 
-function getCode()
-{
-echo 'Enter your code:';read -s a
+# Generate a deterministic password hash from a secret and place the result in the
+# clipboard for a short period of time.  The clipboard is cleared automatically to
+# avoid leaving the derived password lying around.
+
+set -euo pipefail
+
+readonly DEFAULT_CLIPBOARD_TIMEOUT=10
+
+CODE=""
+PINCH_OF_SALT=""
+clear_job_pid=""
+
+cleanup_variables() {
+  unset CODE PINCH_OF_SALT clear_job_pid
 }
 
+abort_and_clear() {
+  if [[ -n "${clear_job_pid}" ]] && kill -0 "${clear_job_pid}" 2>/dev/null; then
+    kill "${clear_job_pid}" 2>/dev/null || true
+    wait "${clear_job_pid}" 2>/dev/null || true
+  fi
 
-function genpass()
-{
-getCode
-echo $(echo ${a}|shasum -a 1)|cut -f1 -d' '|xclip -i -rmlastnl -selection clipboard
-(sleep 10; xclip -i -selection clipboard /dev/null) &
-}
-function genpass_unsalted()
-{
-getCode
-pinchofsalt="Z2VucGFzc3Vuc2FsdGVk"
-gen_hash_and_clean_mem
+  clear_clipboard
+  cleanup_variables
+  exit 1
 }
 
-function genpass_salted()
-{
-getCode
-echo 'Put some salt:';read -s pinchofsalt
-gen_hash_and_clean_mem
+trap cleanup_variables EXIT
+trap abort_and_clear INT TERM
+
+CLIPBOARD_TIMEOUT=${CLIPBOARD_TIMEOUT:-$DEFAULT_CLIPBOARD_TIMEOUT}
+
+if [[ ! ${CLIPBOARD_TIMEOUT} =~ ^[0-9]+$ ]] || ((CLIPBOARD_TIMEOUT <= 0)); then
+  printf 'Error: CLIPBOARD_TIMEOUT must be a positive integer (received %s).\n' "${CLIPBOARD_TIMEOUT}" >&2
+  exit 1
+fi
+
+die() {
+  printf 'Error: %s\n' "$1" >&2
+  exit 1
 }
 
-#Generate hash and clear clipboard
-function gen_hash_and_clean_mem()
-{
-#echo "${pinchofsalt} ${a} $(echo ${pinchofsalt}|rev)"|openssl passwd -stdin -aixmd5 -salt "${pinchofsalt}"|cut -f2 -d$|xclip -i -rmlastnl -selection clipboard
-printf "${pinchofsalt} ${a} $(echo ${pinchofsalt}|rev)"|openssl passwd -stdin -aixmd5 -salt "${pinchofsalt}"|cut -f2 -d$|xclip -i -rmlastnl -selection clipboard
+require_commands() {
+  local missing=()
 
-(sleep 10; xclip -i -selection clipboard /dev/null) &
+  for cmd in "$@"; do
+    command -v "$cmd" >/dev/null 2>&1 || missing+=("$cmd")
+  done
+
+  if ((${#missing[@]})); then
+    die "Missing required command(s): ${missing[*]}"
+  fi
 }
 
-function get_help()
-{
-echo "
-This scrypt will generated secure hashcode from given code in order to use as password and load into clipboard ready to paste . It will automatically clear the clipboard after 10 seconds.  Using salted option you can save the code in paper or as unencrypted file since, these codes are useless as long as the salt is hidden or secure
-Syntax: myPass.sh [option]
+clear_clipboard() {
+  # Skip clipboard cleanup silently when xclip is not available (e.g. help text).
+  command -v xclip >/dev/null 2>&1 || return 0
 
-option: -a = shasum -a (to be decomissioned)
-	-s = salted
-	-h = display this help
-"
-
+  # xclip refuses to read from /dev/null unless -i is explicitly provided.
+  xclip -i -selection clipboard /dev/null || true
 }
 
-case $1 in 
-	"")
-		genpass_unsalted
-		;;
-	"-a" | "--added")
-		genpass
-		;;
-	"-s" | "--salted")
-		genpass_salted
-		;;
-	"-h" | "--help")
-		get_help
-		;;	
-	*)
-		echo "Invalid entry"
-		get_help
-		;;
-esac
+clear_clipboard_after_delay() {
+  sleep "${CLIPBOARD_TIMEOUT}" && clear_clipboard
+}
+
+schedule_clipboard_clear() {
+  clear_clipboard_after_delay &
+  clear_job_pid=$!
+}
+
+prompt_secret() {
+  local prompt=$1
+  local __resultvar=$2
+  local secret
+
+  read -rsp "$prompt" secret
+  printf '\n'
+
+  printf -v "$__resultvar" '%s' "$secret"
+}
+
+get_code() {
+  prompt_secret 'Enter your code: ' CODE
+}
+
+genpass() {
+  get_code
+  # The unsalted mode mirrors the original behaviour (sha1 without a salt).
+  # The newline is preserved for backwards compatibility with the legacy script
+  # which relied on `echo` writing a trailing line feed before hashing.
+  printf '%s\n' "$CODE" | shasum -a 1 | awk '{print $1}' | xclip -i -rmlastnl -selection clipboard
+  schedule_clipboard_clear
+}
+
+genpass_unsalted() {
+  get_code
+  PINCH_OF_SALT='Z2VucGFzc3Vuc2FsdGVk'
+  gen_hash_and_clean_mem
+}
+
+genpass_salted() {
+  get_code
+  prompt_secret 'Put some salt: ' PINCH_OF_SALT
+  gen_hash_and_clean_mem
+}
+
+# Generate hash and clear clipboard
+gen_hash_and_clean_mem() {
+  local reversed_salt
+  reversed_salt=$(printf '%s' "$PINCH_OF_SALT" | rev)
+
+  printf '%s %s %s' "$PINCH_OF_SALT" "$CODE" "$reversed_salt" \
+    | openssl passwd -stdin -aixmd5 -salt "$PINCH_OF_SALT" \
+    | cut -d'$' -f2 \
+    | xclip -i -rmlastnl -selection clipboard
+
+  schedule_clipboard_clear
+}
+
+get_help() {
+  cat <<'USAGE'
+Usage: myPass [option]
+
+Generate a deterministic password hash from the provided secret and copy the
+result to the clipboard. The clipboard is cleared automatically after a short
+period (10 seconds by default).
+
+Options:
+  -a, --added    Legacy unsalted SHA-1 mode (kept for backwards compatibility).
+  -s, --salted   Prompt for an additional salt before generating the password.
+  -h, --help     Display this help message.
+
+Environment variables:
+  CLIPBOARD_TIMEOUT  Override the clipboard retention period (seconds).
+USAGE
+}
+
+main() {
+  case "${1:-}" in
+    "-h" | "--help")
+      get_help
+      return 0
+      ;;
+  esac
+
+  require_commands xclip openssl shasum rev awk
+
+  case "${1:-}" in
+    "")
+      genpass_unsalted
+      ;;
+    "-a" | "--added")
+      genpass
+      ;;
+    "-s" | "--salted")
+      genpass_salted
+      ;;
+    *)
+      printf 'Invalid entry\n\n' >&2
+      get_help
+      exit 1
+      ;;
+  esac
+}
+
+main "$@"
