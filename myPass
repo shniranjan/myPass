@@ -12,18 +12,23 @@ CODE=""
 PINCH_OF_SALT=""
 clear_job_pid=""
 
-cleanup() {
+cleanup_variables() {
+  unset CODE PINCH_OF_SALT clear_job_pid
+}
+
+abort_and_clear() {
   if [[ -n "${clear_job_pid}" ]] && kill -0 "${clear_job_pid}" 2>/dev/null; then
     kill "${clear_job_pid}" 2>/dev/null || true
     wait "${clear_job_pid}" 2>/dev/null || true
   fi
 
   clear_clipboard
-
-  unset CODE PINCH_OF_SALT
+  cleanup_variables
+  exit 1
 }
 
-trap cleanup EXIT INT TERM
+trap cleanup_variables EXIT
+trap abort_and_clear INT TERM
 
 CLIPBOARD_TIMEOUT=${CLIPBOARD_TIMEOUT:-$DEFAULT_CLIPBOARD_TIMEOUT}
 
