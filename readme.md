@@ -7,7 +7,8 @@ behind.
 
 ## Features
 - Deterministic password generation using either legacy SHA-1 or salted AIX MD5
-  hashing, matching the behaviour of the original script.
+  hashing, matching the behaviour of the original script (including the
+  historical newline handling in legacy mode).
 - Automatic clipboard clearing after a configurable timeout (10 seconds by
   default) without erasing the password immediately after generation.
 - Prompts for secrets without echoing input to the terminal.

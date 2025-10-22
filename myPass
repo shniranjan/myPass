@@ -89,7 +89,9 @@ get_code() {
 genpass() {
   get_code
   # The unsalted mode mirrors the original behaviour (sha1 without a salt).
-  printf '%s' "$CODE" | shasum -a 1 | awk '{print $1}' | xclip -i -rmlastnl -selection clipboard
+  # The newline is preserved for backwards compatibility with the legacy script
+  # which relied on `echo` writing a trailing line feed before hashing.
+  printf '%s\n' "$CODE" | shasum -a 1 | awk '{print $1}' | xclip -i -rmlastnl -selection clipboard
   schedule_clipboard_clear
 }
 
